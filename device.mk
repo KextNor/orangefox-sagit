@@ -10,8 +10,22 @@ LOCAL_PATH := device/xiaomi/sagit
 PRODUCT_SHIPPING_API_LEVEL := 25
 
 # TWRP / OrangeFox build flags
+# NOTE: TW_THEME must be in product-level mk, NOT BoardConfig.mk
+TW_THEME := portrait_hdpi
 TW_FRAMERATE := 60
 TARGET_RECOVERY_PIXEL_FORMAT := RGBX_8888
+
+# TWRP flags (product level)
+RECOVERY_SDCARD_ON_DATA := true
+BOARD_HAS_NO_REAL_SDCARD := true
+TW_EXCLUDE_DEFAULT_USB_INIT := true
+TW_EXTRA_LANGUAGES := true
+TW_INPUT_BLACKLIST := "hbtp_vm"
+TW_INCLUDE_NTFS_3G := true
+TW_USE_TOOLBOX := true
+TARGET_USES_LOGD := true
+TWRP_INCLUDE_LOGCAT := true
+TW_SCREEN_BLANK_ON_BOOT := true
 
 # Crypto / FBE
 TW_USE_FSCRYPT_POLICY := 1
