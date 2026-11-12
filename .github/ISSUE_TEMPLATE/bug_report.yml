@@ -1,5 +1,5 @@
 name: 刷机 / 使用问题反馈
-description: 报告 OrangeFox R12 (polaris) 的刷入失败、启动异常、功能问题
+description: 报告 OrangeFox R12 (sagit) 的刷入失败、启动异常、功能问题
 title: "[Bug] "
 labels: ["bug"]
 body:
@@ -17,8 +17,8 @@ body:
     id: version
     attributes:
       label: 使用的版本
-      description: Release 标签或文件名，例如 Fix1-v12.0_1-polaris
-      placeholder: Fix1-v12.0_1-polaris
+      description: Release 标签或文件名，例如 Fix1-v12.0_1-sagit
+      placeholder: Fix1-v12.0_1-sagit
     validations:
       required: true
 
@@ -91,5 +91,5 @@ body:
       options:
         - label: 我已附上至少一份日志（flash.log 或 recovery.log）
           required: true
-        - label: 我保留了一份官方 R11.1 的包作为回退
+        - label: 我保留了一份官方 OrangeFox R9/R10 的包作为回退
           required: true
