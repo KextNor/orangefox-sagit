@@ -1,0 +1,245 @@
+name: Build OrangeFox Recovery for sagit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Display disk space
+        run: df -h
+
+      - name: Free up disk space
+        run: |
+          echo "=== Freeing up disk space ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/share/chromium
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/azure-pipelines
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/local/go
+          sudo rm -rf /usr/share/miniconda
+          sudo rm -rf /usr/local/lib/heroku
+          sudo rm -rf /usr/local/share/powershell
+          sudo apt-get clean
+          sudo apt-get autoremove -y
+          echo "=== Disk space after cleanup ==="
+          df -h
+
+      - name: Install build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
+        run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/install-dependencies.log"
+          report_result() {
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              tail -100 "$log" || true
+              summary=$(tail -5 "$log" | tr '\n' ' ' | cut -c1-1200)
+              echo "::error::Dependency installation failed (exit $rc): $summary"
+            else
+              tail -20 "$log"
+            fi
+          }
+          trap report_result EXIT
+          {
+            sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer || true
+            sudo systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service || true
+            sudo dpkg --configure -a
+            sudo apt-get -o DPkg::Lock::Timeout=180 -o Acquire::Retries=3 update
+            curl -fsSL --retry 5 --retry-all-errors --connect-timeout 15 --max-time 60 \
+              "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776" \
+              | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/deadsnakes.gpg
+            echo "deb [signed-by=/usr/share/keyrings/deadsnakes.gpg] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu jammy main" \
+              | sudo tee /etc/apt/sources.list.d/deadsnakes.list
+            sudo apt-get -o DPkg::Lock::Timeout=180 -o Acquire::Retries=3 update
+            sudo apt-get -o DPkg::Lock::Timeout=180 -o Acquire::Retries=3 install -y \
+              git-core python2.7 python3 git-lfs aria2 \
+              zlib1g-dev openjdk-11-jdk libssl-dev libncurses5 \
+              bison flex gperf libxml2-utils lz4 \
+              lib32ncurses5-dev lib32z1 lib32stdc++6 zip \
+              libncurses5-dev libtinfo5 libssl-dev \
+              build-essential bc cpio
+            sudo ln -sf /usr/bin/python2.7 /usr/bin/python2
+            sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+            python --version
+            java -version
+            mkdir -p $HOME/.bin
+            curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/.bin/repo
+            chmod a+rx $HOME/.bin/repo
+            echo "export PATH=$HOME/.bin:$PATH" >> $HOME/.bashrc
+            export PATH=$HOME/.bin:$PATH
+            repo --version
+          } >"$log" 2>&1
+
+      - name: Sync OrangeFox sources (fox_12.1)
+        run: |
+          export PATH=$HOME/.bin:$PATH
+          cd $HOME
+          git clone https://gitlab.com/OrangeFox/sync.git OrangeFox_sync
+          cd OrangeFox_sync
+          ./orangefox_sync.sh --branch 12.1 --path $HOME/fox_12.1
+          echo "=== Sync complete ==="
+          df -h
+
+      - name: Setup device tree
+        run: |
+          cd $HOME/fox_12.1
+          mkdir -p device/xiaomi
+          # sagit fox_9.0 tree is self-contained (no common tree dependency for R12)
+          # Clone the official device tree directly
+          git clone --depth=1 https://gitlab.com/OrangeFox/device/sagit.git -b fox_9.0 device/xiaomi/sagit
+          # Copy our custom device tree files from this repo (overrides official)
+          cp -f $GITHUB_WORKSPACE/AndroidProducts.mk device/xiaomi/sagit/
+          cp -f $GITHUB_WORKSPACE/BoardConfig.mk device/xiaomi/sagit/
+          cp -f $GITHUB_WORKSPACE/twrp_sagit.mk device/xiaomi/sagit/
+          cp -f $GITHUB_WORKSPACE/vendorsetup.sh device/xiaomi/sagit/
+          cp -f $GITHUB_WORKSPACE/recovery.fstab device/xiaomi/sagit/
+          cp -f $GITHUB_WORKSPACE/system.prop device/xiaomi/sagit/
+          echo "=== Device tree setup complete ==="
+          ls -la device/xiaomi/sagit/
+
+      - name: Build OrangeFox Recovery
+        run: |
+          cd $HOME/fox_12.1
+          set +e
+          export ALLOW_MISSING_DEPENDENCIES=true
+          export FOX_BUILD_DEVICE=sagit
+          export LC_ALL="C"
+          echo "=== Sourcing envsetup.sh ==="
+          source build/envsetup.sh
+          echo "=== envsetup.sh done, exit: $? ==="
+          echo "=== Running lunch ==="
+          lunch twrp_sagit-eng
+          echo "=== lunch done, exit: $? ==="
+          echo "=== Starting build ==="
+          mka adbd recoveryimage 2>&1 | tee build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          echo "=== Build exit code: $BUILD_EXIT ==="
+          echo "=== Disk space after build ==="
+          df -h
+          exit $BUILD_EXIT
+
+      - name: Show build output
+        if: always()
+        run: |
+          ls -lh $HOME/fox_12.1/out/target/product/sagit/*.img 2>/dev/null || echo "No .img files found"
+          ls -lh $HOME/fox_12.1/out/target/product/sagit/*.zip 2>/dev/null || echo "No .zip files found"
+          echo "=== Exact image size (bytes) ==="
+          stat -c '%n %s' $HOME/fox_12.1/out/target/product/sagit/*.img 2>/dev/null || echo "n/a"
+          echo "=== Last 100 lines of build log ==="
+          tail -100 $HOME/fox_12.1/build.log 2>/dev/null || echo "No build log"
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/artifacts
+          cp -f $HOME/fox_12.1/out/target/product/sagit/OrangeFox-*.img $GITHUB_WORKSPACE/artifacts/ 2>/dev/null || true
+          cp -f $HOME/fox_12.1/out/target/product/sagit/OrangeFox-*.zip $GITHUB_WORKSPACE/artifacts/ 2>/dev/null || true
+          cp -f $HOME/fox_12.1/out/target/product/sagit/OrangeFox-*.md5 $GITHUB_WORKSPACE/artifacts/ 2>/dev/null || true
+          cp -f $HOME/fox_12.1/build.log $GITHUB_WORKSPACE/artifacts/ 2>/dev/null || true
+          ls -lh $GITHUB_WORKSPACE/artifacts/
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrangeFox-sagit
+          path: |
+            artifacts/*.img
+            artifacts/*.zip
+            artifacts/*.md5
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: artifacts/build.log
+          retention-days: 7
+
+      - name: Publish release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          shopt -s nullglob
+
+          # Collect final OrangeFox artifacts only (exclude intermediate files)
+          FINAL_IMG=(artifacts/OrangeFox-*.img)
+          FINAL_ZIP=(artifacts/OrangeFox-*.zip)
+          FINAL_MD5=(artifacts/OrangeFox-*.md5)
+          ALL_ASSETS=("${FINAL_IMG[@]}" "${FINAL_ZIP[@]}" "${FINAL_MD5[@]}")
+
+          if [ ${#ALL_ASSETS[@]} -eq 0 ]; then
+            echo "::error::No OrangeFox artifacts found in artifacts/"
+            exit 1
+          fi
+
+          # New tag: count existing Fix releases + 1
+          EXISTING_TAGS=$(gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null | grep -oP '^Fix\d+-v\d+\.\d+_\d+-sagit$' | sort -V)
+          if [ -z "$EXISTING_TAGS" ]; then
+            FIX_NUM=0
+          else
+            LAST_FIX=$(echo "$EXISTING_TAGS" | tail -1 | sed -E 's/^Fix([0-9]+)-.*/\1/')
+            FIX_NUM=$((LAST_FIX + 1))
+          fi
+          if [ "$FIX_NUM" -eq 0 ]; then
+            NEW_TAG="v12.0_1-sagit"
+          else
+            NEW_TAG="Fix${FIX_NUM}-v12.0_1-sagit"
+          fi
+
+          # Generate changelog from git log since previous tag / last release
+          PREV_TAG=$(gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null | grep -oP 'v\d+\.\d+_\d+-sagit$|^Fix\d+-v\d+\.\d+_\d+-sagit$' | sort -V | tail -1)
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD 2>/dev/null || git log --pretty=format:"- %s" -20)
+          else
+            LOG=$(git log --pretty=format:"- %s" -20)
+          fi
+
+          cat > /tmp/release_body.md <<EOF
+## 本次更新
+$LOG
+
+## 说明
+- 维护者：ZiLing_Fox
+- 设备：Xiaomi Mi 6 (sagit)
+- 源码：OrangeFox fox_12.1
+
+## 刷入方式
+1. 解锁 bootloader
+2. \`fastboot flash recovery OrangeFox-*.img\`
+3. 刷完立即进入 Recovery 确认
+
+## 问题反馈
+遇到问题请提 Issue：https://github.com/KextNor/orangefox-sagit/issues
+EOF
+
+          echo "=== Publishing release $NEW_TAG ==="
+          gh release create "$NEW_TAG" \
+            --title "$NEW_TAG" \
+            --notes-file /tmp/release_body.md \
+            "${ALL_ASSETS[@]}"
+
+          echo "=== Release published ==="
+          gh release view "$NEW_TAG" --json url --jq '.url'
