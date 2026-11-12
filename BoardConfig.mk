@@ -114,7 +114,11 @@ TW_EXCLUDE_SUPERSU := true
 TW_EXTRA_LANGUAGES := true
 TW_INPUT_BLACKLIST := "hbtp_vm"
 TW_MAX_BRIGHTNESS := 4095
-TW_SCREEN_BLANK_ON_BOOT := true
+# TW_SCREEN_BLANK_ON_BOOT causes touchscreen to be unresponsive on sagit (Mi 6).
+# The display sleeps at boot and after wake the touch controller stops reporting events.
+# Use TW_NO_SCREEN_BLANK instead — screen stays on while in recovery (no effect on system).
+TW_NO_SCREEN_BLANK := true
+TW_NO_SCREEN_TIMEOUT := true
 TW_THEME := portrait_hdpi
 TW_INCLUDE_FUSE_EXFAT := true
 #
