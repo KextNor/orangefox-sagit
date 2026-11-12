@@ -217,23 +217,23 @@ jobs:
             LOG=$(git log --pretty=format:"- %s" -20)
           fi
 
-          cat > /tmp/release_body.md <<EOF
-## 本次更新
-$LOG
-
-## 说明
-- 维护者：ZiLing_Fox
-- 设备：Xiaomi Mi 6 (sagit)
-- 源码：OrangeFox fox_12.1
-
-## 刷入方式
-1. 解锁 bootloader
-2. \`fastboot flash recovery OrangeFox-*.img\`
-3. 刷完立即进入 Recovery 确认
-
-## 问题反馈
-遇到问题请提 Issue：https://github.com/KextNor/orangefox-sagit/issues
-EOF
+          {
+            echo "## 本次更新"
+            echo "$LOG"
+            echo ""
+            echo "## 说明"
+            echo "- 维护者：ZiLing_Fox"
+            echo "- 设备：Xiaomi Mi 6 (sagit)"
+            echo "- 源码：OrangeFox fox_12.1"
+            echo ""
+            echo "## 刷入方式"
+            echo "1. 解锁 bootloader"
+            echo "2. fastboot flash recovery OrangeFox-*.img"
+            echo "3. 刷完立即进入 Recovery 确认"
+            echo ""
+            echo "## 问题反馈"
+            echo "遇到问题请提 Issue：https://github.com/KextNor/orangefox-sagit/issues"
+          } > /tmp/release_body.md
 
           echo "=== Publishing release $NEW_TAG ==="
           gh release create "$NEW_TAG" \
