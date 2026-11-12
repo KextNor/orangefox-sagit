@@ -1,5 +1,7 @@
 #
-# Copyright 2017 The Android Open Source Project
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Copyright (C) 2020-2026 OrangeFox Recovery Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,18 +18,23 @@
 
 # Release name
 PRODUCT_RELEASE_NAME := sagit
-$(call inherit-product, build/target/product/embedded.mk)
+DEVICE_PATH := device/xiaomi/$(PRODUCT_RELEASE_NAME)
 
-# Inherit from our custom product configuration
-$(call inherit-product, vendor/omni/config/common.mk)
+# OrangeFox fox_12.1 standard inherit chain
+$(call inherit-product, $(SRC_TARGET_DIR)/product/base.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit_only.mk)
+$(call inherit-product, $(DEVICE_PATH)/device.mk)
+
+# Inherit from twrp common (OrangeFox uses vendor/twrp/config/common.mk)
+$(call inherit-product, vendor/twrp/config/common.mk)
 
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.hardware.keystore=msm8998 \
     ro.hardware.gatekeeper=msm8998
 
 ## Device identifier. This must come after all inclusions
-PRODUCT_DEVICE := sagit
-PRODUCT_NAME := twrp_sagit
+PRODUCT_DEVICE := $(PRODUCT_RELEASE_NAME)
+PRODUCT_NAME := twrp_$(PRODUCT_RELEASE_NAME)
 PRODUCT_BRAND := Xiaomi
 PRODUCT_MODEL := MI 6
 PRODUCT_MANUFACTURER := Xiaomi
