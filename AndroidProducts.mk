@@ -16,3 +16,7 @@
 
 PRODUCT_MAKEFILES := \
     $(LOCAL_DIR)/twrp_sagit.mk
+
+COMMON_LUNCH_CHOICES := \
+    twrp_sagit-eng \
+    twrp_sagit-userdebug

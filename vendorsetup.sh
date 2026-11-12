@@ -78,6 +78,5 @@ if [ "$1" = "$FDEVICE" -o "$FOX_BUILD_DEVICE" = "$FDEVICE" ]; then
         export | grep "TARGET_" >> $FOX_BUILD_LOG_FILE
     fi
 
-    add_lunch_combo twrp_"$FDEVICE"-eng
-    add_lunch_combo twrp_"$FDEVICE"-userdebug
+# add_lunch_combo moved to COMMON_LUNCH_CHOICES in AndroidProducts.mk (fox_12.1 requirement)
 fi
