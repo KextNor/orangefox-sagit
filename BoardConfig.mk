@@ -112,7 +112,11 @@ TW_EXTRA_LANGUAGES := true
 TW_INPUT_BLACKLIST := "hbtp_vm"
 TW_MAX_BRIGHTNESS := 4095
 TW_SCREEN_BLANK_ON_BOOT := true
-TW_THEME := portrait_hdpi
+
+# OrangeFox fox_12.1 Soong: no more TW_THEME, use screen dimensions
+TARGET_SCREEN_WIDTH := 1080
+TARGET_SCREEN_HEIGHT := 1920
+
 TW_INCLUDE_FUSE_EXFAT := true
 #
 # TW_INCLUDE_NTFS_3G := true
