@@ -225,51 +225,49 @@ jobs:
             exit 1
           fi
 
-          # New tag: count existing Fix releases + 1
-          EXISTING_TAGS=$(gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null | grep -oP '^Fix\d+-v\d+\.\d+_\d+-sagit$' | sort -V)
-          if [ -z "$EXISTING_TAGS" ]; then
-            FIX_NUM=0
-          else
-            LAST_FIX=$(echo "$EXISTING_TAGS" | tail -1 | sed -E 's/^Fix([0-9]+)-.*/\1/')
-            FIX_NUM=$((LAST_FIX + 1))
-          fi
-          if [ "$FIX_NUM" -eq 0 ]; then
-            NEW_TAG="v12.0_1-sagit"
-          else
-            NEW_TAG="Fix${FIX_NUM}-v12.0_1-sagit"
-          fi
+          # 统计已有 Fix 前缀的 release 数量，自动递增（与 polaris 完全一致）
+          n=$(gh release list --limit 200 --json tagName --jq '[.[] | select(.tagName | startswith("Fix"))] | length')
+          n=$((n+1))
+          tag="Fix${n}-v12.0_1-sagit"
 
-          # Generate changelog from git log since previous tag / last release
-          PREV_TAG=$(gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null | grep -oP 'v\d+\.\d+_\d+-sagit$|^Fix\d+-v\d+\.\d+_\d+-sagit$' | sort -V | tail -1)
-          if [ -n "$PREV_TAG" ]; then
-            LOG=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD 2>/dev/null || git log --pretty=format:"- %s" -20)
-          else
-            LOG=$(git log --pretty=format:"- %s" -20)
+          # 本次更新：列出上一个 Release 到当前提交之间的改动
+          prev_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          changes=""
+          if [ -n "$prev_tag" ]; then
+            changes=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${prev_tag}...${GITHUB_SHA}" \
+              --jq '.commits[] | "- " + (.commit.message | split("\n")[0]) + " (" + .sha[0:7] + ")"' 2>/dev/null || true)
+          fi
+          if [ -z "$changes" ]; then
+            changes="- 维护性更新，详见提交历史"
           fi
 
           {
             echo "## 本次更新"
-            echo "$LOG"
-            echo ""
+            echo
+            echo "${changes}"
+            echo
             echo "## 说明"
+            echo
+            echo "适用于 Xiaomi Mi 6（sagit）的 OrangeFox Recovery R12.0_1 非官方构建。"
+            echo
+            echo "- 源码基线：OrangeFox \`fox_12.1\`（FOX_INTERNAL_RELEASE R12.0）"
             echo "- 维护者：ZiLing_Fox"
-            echo "- 设备：Xiaomi Mi 6 (sagit)"
-            echo "- 源码：OrangeFox fox_12.1"
-            echo ""
+            echo "- 构建：GitHub Actions / ubuntu-22.04 / commit ${GITHUB_SHA}"
+            echo
             echo "## 刷入方式"
-            echo "1. 解锁 bootloader"
-            echo "2. fastboot flash recovery OrangeFox-*.img"
-            echo "3. 刷完立即进入 Recovery 确认"
-            echo ""
-            echo "## 问题反馈"
-            echo "遇到问题请提 Issue：https://github.com/KextNor/orangefox-sagit/issues"
-          } > /tmp/release_body.md
+            echo
+            echo '```bash'
+            echo "fastboot erase recovery"
+            echo "fastboot flash recovery OrangeFox-R12.0_1-Unofficial-sagit.img"
+            echo "fastboot reboot recovery"
+            echo '```'
+            echo
+            echo "也可以在已有的 Recovery 中直接刷入 .zip，刷入前建议用附带的 .md5 校验。"
+            echo
+            echo "> 遇到问题请带上日志提 Issue：https://github.com/KextNor/orangefox-sagit/issues/new?template=bug_report.yml"
+          } > release-notes.md
 
-          echo "=== Publishing release $NEW_TAG ==="
-          gh release create "$NEW_TAG" \
-            --title "$NEW_TAG" \
-            --notes-file /tmp/release_body.md \
-            "${ALL_ASSETS[@]}"
-
-          echo "=== Release published ==="
-          gh release view "$NEW_TAG" --json url --jq '.url'
+          echo "Creating release: $tag"
+          gh release create "$tag" "${ALL_ASSETS[@]}" \
+            --title "OrangeFox R12.0_1 (${tag}) - Xiaomi Mi 6 (sagit)" \
+            --notes-file release-notes.md
